@@ -1,0 +1,179 @@
+<?php
+// $Id$
+/**
+ * @file sphinx_rt.module
+ * TODO: Enter file description here.
+ */
+
+/**
+ * Implementation of hook_init().
+ */
+function sphinx_rt_init() {
+  module_load_include('inc', 'sphinx_rt', 'sphinx_rt.admin');
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function sphinx_rt_menu() { 
+  $items['admin/settings/sphinx-rt'] = array(
+    'title'            => 'Sphinx RT settings',
+    'page callback'    => 'drupal_get_form',
+    'page arguments'   => array('sphinx_rt_admin'),
+    'access arguments' => array('administer sphinx rt indexes'),
+    'file'             => 'sphinx_rt.admin.inc',
+  );
+
+  return $items;
+}
+
+/**
+ * Implementation of hook_perm().
+ */
+function sphinx_rt_perm() {
+  return array('administer sphinx rt indexes');
+}
+
+/**
+ * Implementation of hook_nodeapi().
+ */
+function sphinx_rt_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
+  switch ($op) {
+    case 'delete':
+      if (sphinx_rt_check_node($node)) {
+        sphinx_rt_node_delete($node);
+      }
+      break;
+    case 'insert':
+      if (sphinx_rt_check_node($node)) {
+        sphinx_rt_node_insert($node);
+      }
+      break;
+    case 'update':
+      if (sphinx_rt_check_node($node)) {
+        sphinx_rt_node_update($node);
+      }
+      break;
+  }
+}
+
+/**
+ * Check whether node type available for indexing.
+ */
+function sphinx_rt_check_node($node) {
+  $allowed_node_types = variable_get('sphinx_rt_node_types', array());
+  return in_array($node->type, $allowed_node_types);
+}
+
+/**
+ * Connect to Sphinx through SphinxQL.
+ */
+function sphinx_rt_connect() {
+  static $sphinx_rt_connection;
+
+  if ($sphinx_rt_connection) {
+    return $sphinx_rt_connection;
+  }
+
+  $host  = variable_get('sphinx_rt_host', '127.0.0.1');
+  $port  = variable_get('sphinx_rt_port', '9306');
+  
+  $sphinx_rt_connection = mysql_connect("$host:$port");
+  return $sphinx_rt_connection;
+}
+
+/**
+ * Adding node to Sphinx RT index.
+ */
+function sphinx_rt_node_insert($nodes) {
+  $link = sphinx_rt_connect();
+  $index = variable_get('sphinx_rt_index', 'rt');
+
+  if (!is_array($nodes)) {
+    $nodes = array($nodes);
+  }
+  $insert_sql_values = array();
+  while ($row = each($nodes)) {
+    $node = (isset($row['value']->nid)) ? $row['value'] : node_load($row['value']);
+
+    if (!empty($node->last_comment_timestamp) && $node->last_comment_timestamp > $node->changed) {
+      $last_updated = $node->last_comment_timestamp;
+    }
+    else {
+      $last_updated = $node->changed;
+    }
+
+    $comments = '';
+    if (variable_get('sphinx_rt_include_comments', TRUE)) {
+      $comments = array();
+      $result = db_query("SELECT subject, comment FROM {comments} WHERE nid = %d", $node->nid);
+      while ($row = db_fetch_array($result)) {
+        $comments[] = $row['subject'] . '. ' . $row['comment'];
+      }
+      $comments = implode('. ', $comments);
+    }
+
+    // TODO: Add taxonomy (Needed MVAs).
+    $sql_params = array($node->nid, $node->nid, $node->uid, $node->title, $node->body, $comments, $node->type, $node->created, $last_updated, 0);
+    $insert_sql_values[] = vsprintf("(%d, %d, %d, '%s', '%s', '%s', '%s', %d, %d, %d)", $sql_params);
+  }
+  
+  // is_deleted оставлено для совместимости с модулем sphinxsearch
+  $insert_sql = sprintf("INSERT INTO %s (id, nid, uid, subject, content, comments, nodetype, created, last_updated, is_deleted) VALUES %s", $index, implode(',', $insert_sql_values));
+  mysql_query($insert_sql, $link);
+}
+
+/**
+ * Updating node in Sphinx RT index.
+ */
+function sphinx_rt_node_update($nodes) {
+  $link = sphinx_rt_connect();
+  $index = variable_get('sphinx_rt_index', 'rt');
+
+  if (!is_array($nodes)) {
+    $nodes = array($nodes);
+  }
+  while ($row = each($nodes)) {
+    $node = (isset($row['value']->nid)) ? $row['value'] : node_load($row['value']);
+
+    if (!empty($node->last_comment_timestamp) && $node->last_comment_timestamp > $node->changed) {
+      $last_updated = $node->last_comment_timestamp;
+    }
+    else {
+      $last_updated = $node->changed;
+    }
+
+    $comments = '';
+    if (variable_get('sphinx_rt_include_comments', TRUE)) {
+      $comments = array();
+      $result = db_query("SELECT subject, comment FROM {comments} WHERE nid = %d", $node->nid);
+      while ($row = db_fetch_array($result)) {
+        $comments[] = $row['subject'] . '. ' . $row['comment'];
+      }
+      $comments = implode('. ', $comments);
+    }
+    
+    // is_deleted attribute is needed for compatibility with sphinxsearch Drupal module
+    // TODO: Add taxonomy (Needed MVAs).
+    $sql_params = array($index, $node->nid, $node->nid, $node->uid, $node->title, $node->body, $comments, $node->type, $node->created, $last_updated, 0);
+    $update_sql = vsprintf("REPLACE INTO %s (id, nid, uid, subject, content, comments, nodetype, created, last_updated, is_deleted) VALUES (%d, %d, %d, '%s', '%s', '%s', %d, %d, %d)", $sql_params);
+    mysql_query($update_sql, $link);
+  }
+}
+
+/**
+ * Deleting node from Sphinx RT index.
+ */
+function sphinx_rt_node_delete($nodes) {
+  $link = sphinx_rt_connect();
+  $index = variable_get('sphinx_rt_index', 'rt');
+
+  if (!is_array($nodes)) {
+    $nodes = array($nodes);
+  }
+  while ($node = each($nodes)) {
+    $nid = (isset($node['value']->nid)) ? $node['value']->nid : $node['value'];
+    $delete_sql = sprintf("DELETE FROM %s WHERE id = %d", $index, $nid);
+    mysql_query($delete_sql, $link);
+  }
+}
