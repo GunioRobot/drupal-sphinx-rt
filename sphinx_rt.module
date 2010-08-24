@@ -216,7 +216,7 @@ function sphinx_rt_node_insert($nodes) {
   // is_deleted attribute is needed for compatibility with sphinxsearch Drupal module
   // TODO: Add taxonomy (Needed MVAs).
   $insert_sql = sprintf("INSERT INTO %s (id, nid, uid, subject, content, comments, nodetype, created, last_updated, is_deleted) VALUES %s", $index, implode(',', $insert_sql_values));
-  mysql_query($insert_sql, $link);
+  return mysql_query($insert_sql, $link);
 }
 
 /**
@@ -238,8 +238,12 @@ function sphinx_rt_node_update($nodes) {
     $sql_params = array_merge(array($index), sphinx_rt_sql_params($node));
     // TODO: Add taxonomy (Needed MVAs).
     $update_sql = vsprintf("REPLACE INTO %s (id, nid, uid, subject, content, comments, nodetype, created, last_updated, is_deleted) VALUES (%d, %d, %d, '%s', '%s', '%s', %d, %d, %d)", $sql_params);
-    mysql_query($update_sql, $link);
+    if (!mysql_query($update_sql, $link)) {
+      return FALSE;
+    }
   }
+
+  return TRUE;
 }
 
 /**
@@ -259,6 +263,10 @@ function sphinx_rt_node_delete($nodes) {
   while ($node = each($nodes)) {
     $nid        = (isset($node['value']->nid)) ? $node['value']->nid : $node['value'];
     $delete_sql = sprintf("DELETE FROM %s WHERE id = %d", $index, $nid);
-    mysql_query($delete_sql, $link);
+    if (!mysql_query($delete_sql, $link)) {
+      return FALSE;
+    }
   }
+
+  return TRUE;
 }

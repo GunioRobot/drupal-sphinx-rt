@@ -81,6 +81,7 @@ function sphinx_rt_admin(&$form_state) {
     '#collapsible' => TRUE,
     '#collapsed'   => FALSE,
   );
+  // TODO: Move this button on separate page. Add some statistics.
   $form['other']['reindex'] = array(
     '#type' => 'submit',
     '#value' => t('(Re)Index all nodes that available for searching'),
@@ -124,6 +125,9 @@ function sphinx_rt_admin_reindex($form, &$form_state) {
   }
 }
 
+/**
+ * BatchAPI - index cleaning
+ */
 function sphinx_rt_reindex_deleting_process($max, $node_types_array_str, &$context) {
   if (!isset($context['sandbox']['progress'])) {
     $context['sandbox']['progress'] = 0;
@@ -155,6 +159,9 @@ function sphinx_rt_reindex_deleting_process($max, $node_types_array_str, &$conte
   }
 }
 
+/**
+ * BatchAPI - indexing
+ */
 function sphinx_rt_reindex_inserting_process($max, $node_types_array_str, &$context) {
   if (!isset($context['sandbox']['progress'])) {
     $context['sandbox']['progress'] = 0;
@@ -190,6 +197,9 @@ function sphinx_rt_reindex_inserting_process($max, $node_types_array_str, &$cont
   }
 }
 
+/**
+ * BatchAPI - finish
+ */
 function sphinx_rt_reindex_finished($success, $results, $operations) {
   if ($success) {
     $message = count($results) .' nodes were added to index.';
@@ -227,8 +237,17 @@ function sphinx_rt_node_operations() {
  * Add or update node in Sphinx RT index.
  */
 function sphinx_rt_add_update_node_operation($nids) {
-  sphinx_rt_node_delete($nids);
-  sphinx_rt_node_insert($nids);
+  if (sphinx_rt_node_delete($nids)) {
+    if (sphinx_rt_node_insert($nids)) {
+      drupal_set_message(format_plural(count($nids), '1 node was indexed', '@count nodes were indexed.'));
+    }
+    else {
+      drupal_set_message(t('An error occured. Please check connection to sphinxsearch daemon.'), 'error');
+    }
+  }
+  else {
+    drupal_set_message(t('An error occured. Please check connection to sphinxsearch daemon.'), 'error');
+  }
 }
 
 /**
@@ -236,5 +255,10 @@ function sphinx_rt_add_update_node_operation($nids) {
  * Add or update node in Sphinx RT index.
  */
 function sphinx_rt_delete_node_operation($nids) {
-  sphinx_rt_node_delete($nids);
+  if (sphinx_rt_node_delete($nids)) {
+    drupal_set_message(format_plural(count($nids), '1 node was deleted from index', '@count nodes were deleted from index.'));
+  }
+  else {
+    drupal_set_message(t('An error occured. Please check connection to sphinxsearch daemon.'), 'error');
+  }
 }
