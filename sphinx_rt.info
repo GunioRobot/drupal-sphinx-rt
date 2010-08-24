@@ -1,5 +1,5 @@
 ; $Id$
 name = Sphinx RT
-description = Makes available to use Sphinxsearch Real-time indexes in Drupal
+description = Makes available Sphinxsearch Real-time indexes in Drupal
 package = Search
 core = 6.x

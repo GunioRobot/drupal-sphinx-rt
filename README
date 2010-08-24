@@ -1,3 +1,14 @@
 // $Id$
 
-Makes available to use Sphinxsearch Real-time indexes in Drupal
+-------------------------------------------------------------------------------
+SphinxRT for Drupal 6.x
+-------------------------------------------------------------------------------
+
+DESCRIPTION:
+Makes available Sphinxsearch Real-time indexes in Drupal.
+
+INSTALLATION:
+Coming soon.
+
+NOTE:
+This project is currently under development.
