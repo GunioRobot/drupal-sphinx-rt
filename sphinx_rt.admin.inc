@@ -2,7 +2,7 @@
 // $Id$
 /**
  * @file sphinx_rt.admin.module
- * TODO: Enter file description here.
+ * Administration functions.
  */
 
 /**
@@ -21,20 +21,47 @@ function sphinx_rt_admin(&$form_state) {
     $taxonomy_options[$vocabulary->vid] = $vocabulary->name;
   }
   
-  $form['general'] = array(
+  $form['connection'] = array(
     '#type'        => 'fieldset',
-    '#title'       => t('General settings'),
+    '#title'       => t('Connection settings'),
     '#collapsible' => TRUE,
     '#collapsed'   => FALSE,
   );
-  $form['general']['sphinx_rt_node_types'] = array(
+  $form['connection']['sphinx_rt_host'] = array (
+    '#type'          => 'textfield', 
+    '#title'         => t('Host'), 
+    '#default_value' => variable_get('sphinx_rt_host', '127.0.0.1'),
+    '#description'   => t('Hostname or IP-address where searchd running.'),
+    '#required'      => TRUE,
+  );
+  $form['connection']['sphinx_rt_port'] = array (
+    '#type'          => 'textfield', 
+    '#title'         => t('Port'), 
+    '#default_value' => variable_get('sphinx_rt_port', '9306'),
+    '#description'   => t('Port number where searchd running.'),
+    '#required'      => TRUE,
+  );
+  $form['connection']['sphinx_rt_index'] = array (
+    '#type'          => 'textfield', 
+    '#title'         => t('Index'), 
+    '#default_value' => variable_get('sphinx_rt_index', 'rt'),
+    '#description'   => t('Index name for queries.'),
+    '#required'      => TRUE,
+  );
+  $form['indexing'] = array(
+    '#type'        => 'fieldset',
+    '#title'       => t('Indexing settings'),
+    '#collapsible' => TRUE,
+    '#collapsed'   => FALSE,
+  );
+  $form['indexing']['sphinx_rt_node_types'] = array(
     '#type'          => 'checkboxes',
     '#title'         => t('Node types'),
     '#default_value' => variable_get('sphinx_rt_node_types', array()),
     '#options'       => $node_types_options,
     '#description'   => t('Select node types, that should been included in Sphinx RT index.'),
   );
-  $form['general']['sphinx_rt_include_comments'] = array(
+  $form['indexing']['sphinx_rt_include_comments'] = array(
     '#type'          => 'checkbox',
     '#title'         => t('Include comments'),
     '#default_value' => variable_get('sphinx_rt_include_comments', TRUE),
@@ -67,12 +94,12 @@ function sphinx_rt_admin(&$form_state) {
  * (Re)indexing all nodes through BatchAPI.
  */
 function sphinx_rt_admin_reindex($form, &$form_state) {
+  // Get node types, that allowed for indexing
   $allowed_node_types = variable_get('sphinx_rt_node_types', array());
-    
+
+  // If any type is allowed, start batch processing
   if (!empty($allowed_node_types)) {
     $node_types = array();
-    $nodes = array();
-    
     foreach ($allowed_node_types as $type => $allowed) {
       if ($allowed) {
         $node_types[] = $type;
@@ -80,12 +107,12 @@ function sphinx_rt_admin_reindex($form, &$form_state) {
     }
 
     $node_types_array_str = implode("','", $node_types);
-       
     $max = db_result(db_query("SELECT COUNT(*) FROM {node} WHERE type IN ('" . $node_types_array_str . "') AND status = 1"));
+    
     $batch = array(
       'operations' => array(
-        array('sphinx_rt_reindex_deleting_process', array($max, $node_types_array_str)),
-        array('sphinx_rt_reindex_inserting_process', array($max, $node_types_array_str)),
+        array('sphinx_rt_reindex_deleting_process', array($max, $node_types_array_str)),  // Deleting all nodes from index
+        array('sphinx_rt_reindex_inserting_process', array($max, $node_types_array_str)), // Indexing all allowed nodes
       ),
       'finished'         => 'sphinx_rt_reindex_finished',
       'title'            => t('(Re)Indexing'),
@@ -103,15 +130,14 @@ function sphinx_rt_reindex_deleting_process($max, $node_types_array_str, &$conte
     $context['sandbox']['max']      = $max;
   }
 
-  // For this example, we decide that we can safely process
-  // 100 nodes at a time without a timeout.
+  // We can safely process 100 nodes at a time without a timeout.
   $limit = 100;
 
   // With each pass through the callback, retrieve the next group of nids.
   $nodes = array();
   $result = db_query_range("SELECT nid FROM {node} WHERE type IN ('" . $node_types_array_str . "') AND status = 1", $context['sandbox']['progress'], $limit);
   while ($row = db_fetch_array($result)) {
-    // Here we actually perform our processing on the current node.
+    // Collect nids
     $nodes[] = $row['nid'];
 
     // Update our progress information.
@@ -119,6 +145,7 @@ function sphinx_rt_reindex_deleting_process($max, $node_types_array_str, &$conte
     $context['message'] = t('Cleaning index. Please be patient');
   }
 
+  // Deleting all collected on this step nodes from index
   sphinx_rt_node_delete($nodes);
 
   // Inform the batch engine that we are not finished,
@@ -134,8 +161,7 @@ function sphinx_rt_reindex_inserting_process($max, $node_types_array_str, &$cont
     $context['sandbox']['max']      = $max;
   }
 
-  // For this example, we decide that we can safely process
-  // 100 nodes at a time without a timeout.
+  // We can safely process 100 nodes at a time without a timeout.
   $limit = 100;
 
   // With each pass through the callback, retrieve the next group of nids.
@@ -143,8 +169,7 @@ function sphinx_rt_reindex_inserting_process($max, $node_types_array_str, &$cont
   $result = db_query_range("SELECT nid FROM {node} WHERE type IN ('" . $node_types_array_str . "') AND status = 1", $context['sandbox']['progress'], $limit);
   while ($row = db_fetch_array($result)) {
 
-    // Here we actually perform our processing on the current node.
-    //$node = node_load($row['nid'], NULL, TRUE);
+    // Collect nids
     $nodes[] = $row['nid'];
 
     // Store some result for post-processing in the finished callback.
@@ -155,6 +180,7 @@ function sphinx_rt_reindex_inserting_process($max, $node_types_array_str, &$cont
     $context['message'] = t('Indexing. Please be patient');
   }
 
+  // Indexing all collected on this step nodes
   sphinx_rt_node_insert($nodes);
 
   // Inform the batch engine that we are not finished,
@@ -166,12 +192,10 @@ function sphinx_rt_reindex_inserting_process($max, $node_types_array_str, &$cont
 
 function sphinx_rt_reindex_finished($success, $results, $operations) {
   if ($success) {
-    // Here we do something meaningful with the results.
     $message = count($results) .' nodes were added to index.';
   }
   else {
     // An error occurred.
-    // $operations contains the operations that remained unprocessed.
     $error_operation = reset($operations);
     $message = t('An error occurred while processing %error_operation with arguments: @arguments', array('%error_operation' => $error_operation[0], '@arguments' => print_r($error_operation[1], TRUE)));
   }
@@ -182,6 +206,10 @@ function sphinx_rt_reindex_finished($success, $results, $operations) {
  * Implementation of hook_node_operations().
  */
 function sphinx_rt_node_operations() {
+  if (!user_access('administer sphinx rt indexes')) {
+    return;
+  }
+  
   return array(
     'sphinx_rt_add_update_node' => array(
       'label' => t('Add or update node in Sphinx RT index'),
@@ -199,12 +227,8 @@ function sphinx_rt_node_operations() {
  * Add or update node in Sphinx RT index.
  */
 function sphinx_rt_add_update_node_operation($nids) {
-  /*$nodes = array();
-  while ($row = each($nids)) {
-    $nodes[] = node_load($row['value']);
-  }
-  sphinx_rt_node_insert($nodes);*/
-  sphinx_rt_node_update($nids);
+  sphinx_rt_node_delete($nids);
+  sphinx_rt_node_insert($nids);
 }
 
 /**
@@ -212,10 +236,5 @@ function sphinx_rt_add_update_node_operation($nids) {
  * Add or update node in Sphinx RT index.
  */
 function sphinx_rt_delete_node_operation($nids) {
-  /*$nodes = array();
-  while ($row = each($nids)) {
-    $nodes[] = node_load($row['value']);
-  }
-  sphinx_rt_node_delete($nodes);*/
   sphinx_rt_node_delete($nids);
 }
