@@ -75,26 +75,37 @@ function sphinx_rt_admin(&$form_state) {
     '#options'       => $taxonomy_options,
     '#description'   => t('Select taxonomy vocabularies, that should been included in Sphinx RT index.'),
   );*/
-  $form['other'] = array(
+
+  return system_settings_form($form);
+}
+
+function sphinx_rt_status(&$form_state) {
+  $form['indexing'] = array(
+    '#type'  => 'fieldset',
+    '#title' => t('Indexing status'),
+  );
+  $form['indexing']['reindex'] = array(
+    '#type'   => 'submit',
+    '#value'  => t('(Re)Index all nodes that available for searching'),
+    '#submit' => array('sphinx_rt_reindex'),
+    '#prefix' => '<p><strong>' . t('<em>!percent</em> of the site has been indexed.', array('!percent' => sphinx_rt_get_status_percent() . '%')) . '</strong></p>',
+  );
+  $form['server'] = array(
     '#type'        => 'fieldset',
-    '#title'       => t('Other'),
+    '#title'       => t('Server status'),
     '#collapsible' => TRUE,
     '#collapsed'   => FALSE,
   );
-  // TODO: Move this button on separate page. Add some statistics.
-  $form['other']['reindex'] = array(
-    '#type' => 'submit',
-    '#value' => t('(Re)Index all nodes that available for searching'),
-    '#submit' => array('sphinx_rt_admin_reindex'),
+  $form['server']['variables'] = array(
+    '#value' => sphinx_rt_get_status_info(),
   );
-
-  return system_settings_form($form);
+  return $form;
 }
 
 /**
  * (Re)indexing all nodes through BatchAPI.
  */
-function sphinx_rt_admin_reindex($form, &$form_state) {
+function sphinx_rt_reindex($form, &$form_state) {
   // Get node types, that allowed for indexing
   $allowed_node_types = variable_get('sphinx_rt_node_types', array());
 

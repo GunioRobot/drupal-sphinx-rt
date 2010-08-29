@@ -18,11 +18,26 @@ function sphinx_rt_init() {
  */
 function sphinx_rt_menu() { 
   $items['admin/settings/sphinx-rt'] = array(
-    'title'            => 'Sphinx RT settings',
+    'title'            => 'Sphinx RT',
     'page callback'    => 'drupal_get_form',
     'page arguments'   => array('sphinx_rt_admin'),
     'access arguments' => array('administer sphinx rt indexes'),
     'file'             => 'sphinx_rt.admin.inc',
+  );
+  $items['admin/settings/sphinx-rt/settings'] = array(
+    'title'            => 'Indexing settings',
+    'access arguments' => array('administer sphinx rt indexes'),
+    'weight'           => 0,
+    'type'             => MENU_DEFAULT_LOCAL_TASK,
+  );
+  $items['admin/settings/sphinx-rt/status'] = array(
+    'title'            => 'Server status',
+    'page callback'    => 'drupal_get_form',
+    'page arguments'   => array('sphinx_rt_status'),
+    'access arguments' => array('administer sphinx rt indexes'),
+    'file'             => 'sphinx_rt.admin.inc',
+    'weight'           => 10,
+    'type'             => MENU_LOCAL_TASK,
   );
 
   return $items;
@@ -269,4 +284,61 @@ function sphinx_rt_node_delete($nodes) {
   }
 
   return TRUE;
+}
+
+/**
+ * Get a percentage of indexed nodes.
+ */
+function sphinx_rt_get_status_percent() {
+  $allowed_node_types = variable_get('sphinx_rt_node_types', array());
+  // Node types, that should be indexed
+  $node_types = array();
+  // Percentage of indexed nodes
+  $indexed = 0;           
+  // Get connection link
+  $link  = sphinx_rt_connect();
+  // Get index name
+  $index = variable_get('sphinx_rt_index', 'rt');
+  
+  foreach ($allowed_node_types as $type => $allowed) {
+    if ($allowed) {
+      $node_types[] = $type;
+    }
+  }
+  $node_types_str = implode("','", $node_types);
+  $node_count = db_result(db_query("SELECT COUNT(*) FROM {node} WHERE type IN ('" . $node_types_str . "') AND status = 1"));
+
+  // TODO: add condition for nodetype. Add attribute to the index.
+  // Select all nodes from index.
+  $sql = sprintf("SELECT nid from %s", $index);
+  mysql_query($sql, $link);
+
+  // Get total count of indexed nodes
+  $result = mysql_query("SHOW META", $link);
+  while ($row = mysql_fetch_assoc($result)) {
+    if ($row['Variable_name'] == 'total_found') {
+      $indexed = $row['Value'];
+    }
+  }
+  
+  $percentage = floor($indexed / $node_count * 100);  
+  return $percentage;
+}
+
+/**
+ * Get Sphinxsearch daemon status.
+ */
+function sphinx_rt_get_status_info() {
+  $table = array();
+  // Get connection link
+  $link  = sphinx_rt_connect();
+  // Get index name
+  $index = variable_get('sphinx_rt_index', 'rt');
+
+  $result = mysql_query("SHOW STATUS", $link);
+  while ($row = mysql_fetch_assoc($result)) {
+    $table[] = $row;
+  }
+
+  return theme('table', array('Variable name', 'Value'), $table);
 }
