@@ -20,7 +20,7 @@ function sphinx_rt_admin(&$form_state) {
   foreach ($vocabularies as $vocabulary) {
     $taxonomy_options[$vocabulary->vid] = $vocabulary->name;
   }
-  
+
   $form['connection'] = array(
     '#type'        => 'fieldset',
     '#title'       => t('Connection settings'),
@@ -28,22 +28,22 @@ function sphinx_rt_admin(&$form_state) {
     '#collapsed'   => FALSE,
   );
   $form['connection']['sphinx_rt_host'] = array (
-    '#type'          => 'textfield', 
-    '#title'         => t('Host'), 
+    '#type'          => 'textfield',
+    '#title'         => t('Host'),
     '#default_value' => variable_get('sphinx_rt_host', '127.0.0.1'),
     '#description'   => t('Hostname or IP-address where searchd running.'),
     '#required'      => TRUE,
   );
   $form['connection']['sphinx_rt_port'] = array (
-    '#type'          => 'textfield', 
-    '#title'         => t('Port'), 
+    '#type'          => 'textfield',
+    '#title'         => t('Port'),
     '#default_value' => variable_get('sphinx_rt_port', '9306'),
     '#description'   => t('Port number where searchd running.'),
     '#required'      => TRUE,
   );
   $form['connection']['sphinx_rt_index'] = array (
-    '#type'          => 'textfield', 
-    '#title'         => t('Index'), 
+    '#type'          => 'textfield',
+    '#title'         => t('Index'),
     '#default_value' => variable_get('sphinx_rt_index', 'rt'),
     '#description'   => t('Index name for queries.'),
     '#required'      => TRUE,
@@ -120,7 +120,7 @@ function sphinx_rt_reindex($form, &$form_state) {
 
     $node_types_array_str = implode("','", $node_types);
     $max = db_result(db_query("SELECT COUNT(*) FROM {node} WHERE type IN ('" . $node_types_array_str . "') AND status = 1"));
-    
+
     $batch = array(
       'operations' => array(
         array('sphinx_rt_reindex_deleting_process', array($max, $node_types_array_str)),  // Deleting all nodes from index
@@ -230,7 +230,7 @@ function sphinx_rt_node_operations() {
   if (!user_access('administer sphinx rt indexes')) {
     return;
   }
-  
+
   return array(
     'sphinx_rt_add_update_node' => array(
       'label' => t('Add or update node in Sphinx RT index'),

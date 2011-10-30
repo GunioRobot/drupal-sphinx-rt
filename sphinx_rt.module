@@ -16,7 +16,7 @@ function sphinx_rt_init() {
 /**
  * Implementation of hook_menu().
  */
-function sphinx_rt_menu() { 
+function sphinx_rt_menu() {
   $items['admin/settings/sphinx-rt'] = array(
     'title'            => 'Sphinx RT',
     'page callback'    => 'drupal_get_form',
@@ -143,17 +143,17 @@ function sphinx_rt_node_content(&$node) {
  */
 function sphinx_rt_node_comments($nid) {
   $comments = '';
-  
+
   if (variable_get('sphinx_rt_include_comments', TRUE)) {
     $result   = db_query("SELECT subject, comment FROM {comments} WHERE nid = %d", $nid);
-    
+
     $comments = array();
     while ($row = db_fetch_array($result)) {
       $comments[] = $row['subject'] . '. ' . $row['comment'];
     }
     $comments = implode('. ', $comments);
   }
-  
+
   return sphinx_rt_text_validate($comments);
 }
 
@@ -169,7 +169,7 @@ function sphinx_rt_connect() {
 
   $host  = variable_get('sphinx_rt_host', '127.0.0.1');
   $port  = variable_get('sphinx_rt_port', '9306');
-  
+
   $sphinx_rt_connection = mysql_connect("$host:$port");
   return $sphinx_rt_connection;
 }
@@ -227,7 +227,7 @@ function sphinx_rt_node_insert($nodes) {
     $node                = (isset($row['value']->nid)) ? $row['value'] : node_load($row['value']);
     $insert_sql_values[] = vsprintf("(%d, %d, %d, '%s', '%s', '%s', '%s', %d, %d, %d)", sphinx_rt_sql_params($node));
   }
-  
+
   // is_deleted attribute is needed for compatibility with sphinxsearch Drupal module
   // TODO: Add taxonomy (Needed MVAs).
   $insert_sql = sprintf("INSERT INTO %s (id, nid, uid, subject, content, comments, nodetype, created, last_updated, is_deleted) VALUES %s", $index, implode(',', $insert_sql_values));
@@ -294,12 +294,12 @@ function sphinx_rt_get_status_percent() {
   // Node types, that should be indexed
   $node_types = array();
   // Percentage of indexed nodes
-  $indexed = 0;           
+  $indexed = 0;
   // Get connection link
   $link  = sphinx_rt_connect();
   // Get index name
   $index = variable_get('sphinx_rt_index', 'rt');
-  
+
   foreach ($allowed_node_types as $type => $allowed) {
     if ($allowed) {
       $node_types[] = $type;
@@ -320,8 +320,8 @@ function sphinx_rt_get_status_percent() {
       $indexed = $row['Value'];
     }
   }
-  
-  $percentage = floor($indexed / $node_count * 100);  
+
+  $percentage = floor($indexed / $node_count * 100);
   return $percentage;
 }
 
